@@ -1,0 +1,13 @@
+# Never commit secrets
+.streamlit/secrets.toml
+*.env
+*.key
+__pycache__/
+*.pyc
+# local render artifacts
+work/
+*.mp4
+*.mp3
+*.jpg
+*.ass
+project_config.json

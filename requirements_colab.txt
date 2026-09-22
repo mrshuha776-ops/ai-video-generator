@@ -1,0 +1,5 @@
+# Colab renderer (render_script.py) — install on Colab
+# !pip install -r requirements_colab.txt
+edge-tts>=6.1.9
+requests>=2.31
+# ffmpeg is pre-installed on Colab; on other systems install via your package manager
