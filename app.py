@@ -3,7 +3,7 @@
 """
 AI Video Generator — Streamlit Web Interface (app.py)
 =====================================================
-Zero-cost script generation using Google Gemini (free tier).
+Zero-cost script generation using Groq (Llama 3.3 70B, free tier, no region block).
 Generates a viral hook + scene breakdown, lets the user edit it,
 and exports a project_config.json that render_script.py (Google Colab)
 consumes to render the final MP4.
@@ -14,7 +14,7 @@ Run locally:
 
 Run on Streamlit Cloud (mobile friendly):
     1. Push this repo to GitHub (NO API keys in code).
-    2. Deploy on streamlit.io/cloud -> set GEMINI_API_KEY in Secrets.
+    2. Deploy on streamlit.io/cloud -> set GROQ_API_KEY in Secrets.
     3. Open the app URL on a mobile browser.
 """
 
@@ -26,12 +26,14 @@ import datetime
 
 import streamlit as st
 
-# --- Optional dependency: google-generativeai ---------------------------------
+# --- Optional dependency: groq (free tier, no region block) -------------------
+# Groq uses Llama 3.3 70B for script generation. Works in regions where Gemini
+# is restricted. Get a free key at https://console.groq.com
 try:
-    import google.generativeai as genai
-    HAS_GENAI = True
+    from groq import Groq
+    HAS_GROQ = True
 except Exception:
-    HAS_GENAI = False
+    HAS_GROQ = False
 
 
 # ============================================================================
@@ -40,15 +42,15 @@ except Exception:
 I18N = {
     "uz": {
         "title": "AI Video Generator",
-        "subtitle": "Bepul AI video yaratuvchi — Gemini + Edge-TTS + Pollinations + Pexels",
+        "subtitle": "Bepul AI video yaratuvchi — Groq (Llama 3.3) + Edge-TTS + Pollinations + Pexels",
         "tab_setup": "Sozlash",
         "tab_script": "Ssenariy",
         "tab_export": "Eksport",
         "language": "Til",
-        "api_key": "Gemini API kaliti (bepul)",
-        "api_key_help": "Bepul oling: https://aistudio.google.com/apikey",
-        "api_key_secret": "Yoki Streamlit Secrets'da GEMINI_API_KEY ni o'rnating.",
-        "model": "Gemini modeli",
+        "api_key": "Groq API kaliti (bepul)",
+        "api_key_help": "Bepul oling: https://console.groq.com → API Keys",
+        "api_key_secret": "Yoki Streamlit Secrets'da GROQ_API_KEY ni o'rnating.",
+        "model": "LLM modeli (Groq)",
         "topic": "Video mavzusi",
         "topic_ph": "Masalan: 5 daqiqada ingliz tilini o'rganish sirlari",
         "format": "Format",
@@ -56,7 +58,7 @@ I18N = {
         "format_long": "Uzun (16:9)",
         "voice": "Ovoz (Edge-TTS)",
         "generate": "Ssenariy yaratish",
-        "generating": "Gemini ishlayapti... Iltimos kuting",
+        "generating": "Groq ishlayapti... Iltimos kuting",
         "hook": "Viral hook (3 soniya)",
         "hook_help": "Birinchi 3 soniyada to'xtatuvchi, qiziqarli ochish",
         "scenes": "Sahnalar",
@@ -74,8 +76,8 @@ I18N = {
         "saved": "Saqlandi! Endi eksport qiling.",
         "download": "project_config.json yuklab olish",
         "config_preview": "Konfiguratsiya (JSON)",
-        "need_key": "Iltimos, Gemini API kalitini kiriting.",
-        "genai_missing": "`google-generativeai` topilmadi. requirements_app.txt ni o'rnating.",
+        "need_key": "Iltimos, Groq API kalitini kiriting.",
+        "genai_missing": "`groq` SDK topilmadi. requirements_app.txt ni o'rnating.",
         "error": "Xato yuz berdi",
         "music": "Fon musiqasi",
         "music_query": "Musiqa uslubi (kalit so'z)",
@@ -91,20 +93,20 @@ I18N = {
             "3. PEXELS_API_KEY va PIXABAY_API_KEY ni kiriting\n"
             "4. Barcha hujayirlarni ishga tushiring — MP4 Drive'ga saqlanadi"
         ),
-        "about": "Bu vosita 100% bepul: Gemini (ssenariy), Edge-TTS (ovoz), "
+        "about": "Bu vosita 100% bepul: Groq (ssenariy), Edge-TTS (ovoz), "
                  "Pollinations.ai (AI rasmlar), Pexels (stock video), FFmpeg (render).",
     },
     "en": {
         "title": "AI Video Generator",
-        "subtitle": "Zero-cost AI video maker — Gemini + Edge-TTS + Pollinations + Pexels",
+        "subtitle": "Zero-cost AI video maker — Groq (Llama 3.3) + Edge-TTS + Pollinations + Pexels",
         "tab_setup": "Setup",
         "tab_script": "Script",
         "tab_export": "Export",
         "language": "Language",
-        "api_key": "Gemini API key (free)",
-        "api_key_help": "Get one free: https://aistudio.google.com/apikey",
-        "api_key_secret": "Or set GEMINI_API_KEY in Streamlit Secrets.",
-        "model": "Gemini model",
+        "api_key": "Groq API key (free)",
+        "api_key_help": "Get one free: https://console.groq.com → API Keys",
+        "api_key_secret": "Or set GROQ_API_KEY in Streamlit Secrets.",
+        "model": "LLM model (Groq)",
         "topic": "Video topic",
         "topic_ph": "e.g. 5 secrets to learning English in minutes",
         "format": "Format",
@@ -112,7 +114,7 @@ I18N = {
         "format_long": "Long (16:9)",
         "voice": "Voice (Edge-TTS)",
         "generate": "Generate script",
-        "generating": "Gemini is working... please wait",
+        "generating": "Groq is working... please wait",
         "hook": "Viral hook (3 seconds)",
         "hook_help": "A scroll-stopping, curiosity-driven opener",
         "scenes": "Scenes",
@@ -130,8 +132,8 @@ I18N = {
         "saved": "Saved! Now export it.",
         "download": "Download project_config.json",
         "config_preview": "Config (JSON)",
-        "need_key": "Please enter your Gemini API key.",
-        "genai_missing": "`google-generativeai` not found. Install requirements_app.txt.",
+        "need_key": "Please enter your Groq API key.",
+        "genai_missing": "`groq` SDK not found. Install requirements_app.txt.",
         "error": "An error occurred",
         "music": "Background music",
         "music_query": "Music style (keyword)",
@@ -147,20 +149,20 @@ I18N = {
             "3. Enter PEXELS_API_KEY and PIXABAY_API_KEY\n"
             "4. Run all cells — MP4 is saved to Drive"
         ),
-        "about": "This tool is 100% free: Gemini (script), Edge-TTS (voice), "
+        "about": "This tool is 100% free: Groq (script), Edge-TTS (voice), "
                  "Pollinations.ai (AI images), Pexels (stock video), FFmpeg (render).",
     },
     "ru": {
         "title": "AI Video Generator",
-        "subtitle": "Бесплатный AI видео-генератор — Gemini + Edge-TTS + Pollinations + Pexels",
+        "subtitle": "Бесплатный AI видео-генератор — Groq (Llama 3.3) + Edge-TTS + Pollinations + Pexels",
         "tab_setup": "Настройка",
         "tab_script": "Сценарий",
         "tab_export": "Экспорт",
         "language": "Язык",
-        "api_key": "Gemini API ключ (бесплатно)",
-        "api_key_help": "Получить бесплатно: https://aistudio.google.com/apikey",
-        "api_key_secret": "Или задайте GEMINI_API_KEY в Streamlit Secrets.",
-        "model": "Gemini модель",
+        "api_key": "Groq API ключ (бесплатно)",
+        "api_key_help": "Получить бесплатно: https://console.groq.com → API Keys",
+        "api_key_secret": "Или задайте GROQ_API_KEY в Streamlit Secrets.",
+        "model": "LLM модель (Groq)",
         "topic": "Тема видео",
         "topic_ph": "напр. 5 секретов изучения английского за минуты",
         "format": "Формат",
@@ -168,7 +170,7 @@ I18N = {
         "format_long": "Длинное (16:9)",
         "voice": "Голос (Edge-TTS)",
         "generate": "Создать сценарий",
-        "generating": "Gemini работает... подождите",
+        "generating": "Groq работает... подождите",
         "hook": "Вирусный хук (3 секунды)",
         "hook_help": "Цепляющее начало, останавливающее скролл",
         "scenes": "Сцены",
@@ -186,8 +188,8 @@ I18N = {
         "saved": "Сохранено! Теперь экспортируйте.",
         "download": "Скачать project_config.json",
         "config_preview": "Конфигурация (JSON)",
-        "need_key": "Пожалуйста, введите Gemini API ключ.",
-        "genai_missing": "`google-generativeai` не найден. Установите requirements_app.txt.",
+        "need_key": "Пожалуйста, введите Groq API ключ.",
+        "genai_missing": "`groq` SDK не найден. Установите requirements_app.txt.",
         "error": "Произошла ошибка",
         "music": "Фоновая музыка",
         "music_query": "Стиль музыки (ключевое слово)",
@@ -203,7 +205,7 @@ I18N = {
             "3. Введите PEXELS_API_KEY и PIXABAY_API_KEY\n"
             "4. Запустите все ячейки — MP4 сохранится на Drive"
         ),
-        "about": "Инструмент 100% бесплатный: Gemini (сценарий), Edge-TTS (голос), "
+        "about": "Инструмент 100% бесплатный: Groq (сценарий), Edge-TTS (голос), "
                  "Pollinations.ai (AI изображения), Pexels (stock видео), FFmpeg (рендер).",
     },
 }
@@ -229,7 +231,7 @@ FORMATS = {
 
 
 # ============================================================================
-# Gemini helpers
+# Groq helpers
 # ============================================================================
 SCHEMA_DOC = (
     "{\n"
@@ -250,7 +252,7 @@ SCHEMA_DOC = (
 
 
 def build_prompt(topic: str, lang_name: str, lang_code: str, fmt_key: str) -> str:
-    """Build the Gemini prompt (instructions in English, output narration in target lang)."""
+    """Build the Groq prompt (instructions in English, output narration in target lang)."""
     f = FORMATS[fmt_key]
     n = f["scenes"]
     wps = f["wps"]
@@ -294,33 +296,41 @@ def clean_json_response(text: str) -> str:
 
 
 def generate_script(api_key: str, prompt: str, model_name: str) -> dict:
-    """Call Gemini free tier and return parsed dict."""
-    if not HAS_GENAI:
-        raise RuntimeError("google-generativeai is not installed.")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(model_name)
-    # Ask for JSON; wrap in try/except for safety
+    """Call Groq (Llama 3.3 70B) and return parsed dict."""
+    if not HAS_GROQ:
+        raise RuntimeError("groq SDK is not installed. Install requirements_app.txt.")
+    client = Groq(api_key=api_key)
+    # Groq supports JSON mode for llama-3.x models (forces valid JSON output)
     try:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.85,
-                top_p=0.95,
-                max_output_tokens=4096,
-                response_mime_type="application/json",
-            ),
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a JSON API. Always respond with valid JSON only — no markdown, no prose."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.85,
+            max_tokens=4096,
         )
     except Exception:
-        # Older SDKs don't support response_mime_type; retry without it
-        response = model.generate_content(prompt)
+        # Fallback if a model doesn't support response_format
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": "You are a JSON API. Always respond with valid JSON only — no markdown, no prose."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.85,
+            max_tokens=4096,
+        )
 
-    raw = response.text if hasattr(response, "text") else str(response.candidates[0].content)
+    raw = response.choices[0].message.content or ""
     cleaned = clean_json_response(raw)
     data = json.loads(cleaned)
 
     # Validate / normalize
     if "scenes" not in data or not isinstance(data["scenes"], list):
-        raise ValueError("Gemini response missing 'scenes' array.")
+        raise ValueError("Model response missing 'scenes' array.")
     for i, sc in enumerate(data["scenes"], 1):
         sc.setdefault("id", i)
         sc["id"] = sc.get("id", i)
@@ -432,16 +442,16 @@ def main():
         t = I18N[st.session_state.lang]
 
         # API key (Secrets > manual input)
-        default_key = st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, "secrets") else ""
+        default_key = st.secrets.get("GROQ_API_KEY", "") if hasattr(st, "secrets") else ""
         api_key = st.text_input(
             t["api_key"], value=default_key, type="password",
-            help=t["api_key_help"], key="gem_key")
+            help=t["api_key_help"], key="groq_key")
         if not default_key:
             st.caption("💡 " + t["api_key_secret"])
 
         model = st.selectbox(t["model"],
-                             ["gemini-2.0-flash", "gemini-2.5-flash",
-                              "gemini-1.5-flash", "gemini-2.0-flash-lite"],
+                             ["llama-3.3-70b-versatile", "llama-3.1-8b-instant",
+                              "mixtral-8x7b-32768", "gemma2-9b-it"],
                              index=0, key="model_sel")
 
         st.divider()
@@ -488,7 +498,7 @@ def main():
         if st.button("✨ " + t["generate"], type="primary", use_container_width=True):
             if not api_key:
                 st.warning(t["need_key"])
-            elif not HAS_GENAI:
+            elif not HAS_GROQ:
                 st.error(t["genai_missing"])
             elif not topic.strip():
                 st.warning(t["topic_ph"])
